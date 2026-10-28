@@ -81,6 +81,22 @@ sequenceDiagram
     Episode->>Alert: Emit 1 Alert (ST-xxxx) with full episode evidence
 ```
 
+### 3.3 Computational Complexity Analysis
+
+Understanding the end-to-end computational complexity requires auditing every phase of `detect_suspicious_activity()`:
+
+1. **Filtering & Preprocessing ($O(N)$):**
+   Filtering for `status == "FAILED"` and grouping by entity (`ip_address` or `username`) operates in $O(N)$ time where $N$ is the total count of failed login events.
+2. **Chronological Sorting ($O(N \log N)$):**
+   Events within each entity group are sorted by `["timestamp", "source_row"]` using stable `mergesort`. For a group of size $M_i$, sorting takes $O(M_i \log M_i)$. Summing across all groups yields:
+   $$\sum_{i} O(M_i \log M_i) \le O(N \log N)$$
+3. **Sliding-Window Scanning ($O(N)$):**
+   In both `_scan_threshold_episodes()` and `_scan_spray_episodes()`, both the `left` and `right` pointers advance monotonically from $0$ to $M_i$. Neither pointer ever decrements. In `_scan_spray_episodes()`, the sliding username frequency dictionary (`collections.Counter`) inserts and deletes keys in amortized $O(1)$ time. Thus, the scanning phase across all groups is strictly **linear time: $O(N)$**.
+4. **Alert Sorting ($O(A \log A)$):**
+   The generated alerts are sorted by severity and timestamp. For $A$ emitted alerts ($A \ll N$), this takes $O(A \log A)$ time.
+
+**Conclusion:** The algorithmic core (sliding-window episode scanning) is strictly **$O(N)$ linear time**, while the complete pipeline (including chronological sorting) has an overall computational complexity of **$O(N \log N)$**. Both in-memory space complexity and evidence storage are bounded by $O(N)$.
+
 ---
 
 ## 4. Rule Implementations

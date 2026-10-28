@@ -30,7 +30,7 @@ Authentication logs are the first line of forensic detection in cybersecurity op
   - Strict validation of ISO 8601 timestamps, IPv4/IPv6 addresses, and authentication statuses (`SUCCESS`/`FAILED`).
   - Automatic UTC normalization of naive or mixed-timezone records.
   - Immediate rejection of NUL bytes, duplicate headers, and multiline CSV fields to guarantee physical line-number traceability.
-- **Linear-Time ($O(N)$) Rule-Based Detection Engine:**
+- **High-Performance Rule-Based Detection Engine ($O(N)$ Scanning, $O(N \log N)$ Pipeline):**
   - **Rule 1 (`R1_IP_FAILURES`):** Repeated failed logins from a single IP address within a configurable sliding window.
   - **Rule 2 (`R2_ACCOUNT_FAILURES`):** Repeated failed logins against a single user account within a configurable sliding window.
   - **Rule 3 (`R3_ACCOUNT_SPRAY`):** Multiple distinct accounts targeted from a single IP address within a configurable sliding window.
@@ -163,7 +163,7 @@ python -m pytest -q -W error
 ```powershell
 python scripts/benchmark_detection.py
 ```
-*(Demonstrates linear-time $O(N)$ scaling across dense datasets up to 50,000 events in ~0.61s).*
+*(Demonstrates linear-time $O(N)$ sliding-window scanning across dense datasets up to 50,000 events in ~0.61s).*
 
 For complete testing details and benchmarks, see [docs/TESTING.md](docs/TESTING.md).
 

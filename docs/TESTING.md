@@ -150,5 +150,5 @@ python scripts/benchmark_detection.py
 
 ### Benchmark Analysis
 - The pre-optimization Stage 1 baseline suffered from quadratic complexity ($O(N^2)$) due to copying and appending evidence for every qualifying sub-window.
-- The Stage 4 implementation uses a two-pointer sliding window with episode boundary detection, achieving true linear complexity ($O(N)$). 
+- The Stage 4 implementation uses a two-pointer sliding window with episode boundary detection, achieving true linear complexity ($O(N)$) for episode scanning and $O(N \log N)$ for the complete sorted pipeline.
 - Even at the system's maximum capacity of 50,000 rows, detection completes in approximately 0.6 seconds.
