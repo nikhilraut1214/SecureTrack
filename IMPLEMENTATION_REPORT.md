@@ -1,18 +1,20 @@
-# SecureTrack — Stage 3 Implementation Report
+# SecureTrack — Stage 3 and Stage 4 Implementation Report
 
-**Date:** 2026-10-26
+**Date:** 2026-10-28
 
-**Scope:** Stage 3 only — core parser, detection engine, export security, automated tests, and benchmarks.
+**Scope:** Stage 3 core hardening (parser, detection, and export) plus Stage 4 UI/UX delivery. Stage 4 changes only the presentation layer and its tests; the approved `core/` modules were not modified.
 
-**Status:** Stage 3 complete. No Stage 4 UI redesign has been started. Work is intentionally stopped pending approval.
+**Status:** Stage 4 complete. Work is intentionally stopped before Stage 5 (README and final documentation).
 
 ---
 
 ## 1. Summary
 
-Stage 3 replaces the original quadratic detection path with a transparent episode scanner, hardens CSV ingestion, adds safe CSV exports, and builds an adversarial test suite around the three modules.
+Stage 3 replaces the original quadratic detection path with a transparent episode scanner, hardens CSV ingestion, adds safe CSV exports, and builds an adversarial test suite around the three core modules.
 
-The application behaviour is intentionally unchanged in scope:
+Stage 4 adds a restrained light interface for dataset selection, exploration, alert review, and evidence inspection. It fixes the sample/upload/clear state machine, removes stale-result paths, adds filters and responsive layouts, and makes every alert auditable from the screen.
+
+The application behaviour remains intentionally limited:
 
 - no AI/ML;
 - no automatic blocking, account lockout, or response actions;
@@ -42,7 +44,7 @@ Git was initialised before implementation. The rollback baseline is commit `4d5c
 Baseline: SecureTrack before Stage 3 core optimization
 ```
 
-All Stage 3 changes are committed in this repository; no Stage 4 UI work has been performed.
+Stage 3 is committed as `eea9586`. Stage 4 is the follow-up change set in this working tree and is committed separately after this report. No `core/` file changed during Stage 4.
 
 ---
 
@@ -168,9 +170,9 @@ Exports include:
 - all-evidence CSV;
 - per-alert evidence CSV.
 
-### 3.4 Application wiring — `app.py`
+### 3.4 Stage 3 application wiring — `app.py`
 
-The UI was only minimally rewired for the new core contracts; it was not redesigned.
+Stage 3 minimally rewired the UI for the new core contracts:
 
 - parser metadata shown near the header (source, valid/skipped counts, UTC range);
 - upload size limit enforced before parsing;
@@ -182,6 +184,62 @@ The UI was only minimally rewired for the new core contracts; it was not redesig
 - Streamlit dataframe width calls updated to `width="stretch"` to remove deprecation warnings on the installed Streamlit version.
 
 `requirements.txt` was updated from `streamlit>=1.35` to `streamlit>=1.50` to match the installed API used by the app.
+
+### 3.5 Stage 4 UI/UX — `app.py`, `ui/`, `.streamlit/`
+
+Stage 4 replaces the temporary Stage 3 presentation with a complete, restrained exploration interface. The approved parser, detector, and export builders are untouched.
+
+**Dataset lifecycle and stale-result prevention**
+
+- A session state machine has three explicit modes: `sample` (default), `upload`, and `none`.
+- An uploaded file takes precedence over the sample.
+- `Load sample` increments the uploader nonce, clears the file input, and returns to the sample. It now genuinely loads the sample from every state.
+- `Clear dataset` returns a true empty state; it does not silently fall back to the sample.
+- Removing an active upload moves to `none` and clears results, filters, and dataset identity.
+- Dataset identity is `sample:<mtime_ns>:<size>` or `upload:<sha256>`, so replacing a file invalidates results.
+- Parsing is cached with `st.cache_data` keyed by raw bytes and source name.
+- Detection is memoized by `(dataset_id, threshold, window, spray_users, spray_window)`. Threshold changes re-run detection; filter changes do not.
+- Invalid, header-only, oversized, and unreadable datasets show a validation state only. Stale metrics, charts, filters, and alert cards are never rendered.
+- The sample is identified as `Sample dataset (fictional)`; uploads show their filename, size, row counts, UTC coverage, and active source badge.
+
+**Exploration filters**
+
+- Username substring search and IP substring search, both case-insensitive.
+- Status multiselect with explicit empty-selection behaviour (no events, not all events).
+- Inclusive UTC date range using full days.
+- Reset Filters callback removes every `filter_` session key.
+- Filter state is scoped by a dataset token, so a new dataset starts clean.
+- Filters affect Overview metrics captions, both charts, top-source tables, Log Explorer, and which already-detected alerts are displayed.
+- Detection always runs on the full active dataset. Evidence in each alert remains the complete episode, even when filters hide some rows.
+- A clear caption states that filters do not change top-line metrics.
+
+**Alert presentation**
+
+- Alert summary with stable IDs, priority, rule, entity, start/end, event count, peak, threshold, and window.
+- Severity counts for High and Medium priority, plus displayed-alert count.
+- Informational badges explain that alerts are review indicators, not confirmed attacks.
+- Each alert card states why it fired, the affected IP or account, episode range, peak window, threshold, event count, and relevant distinct-IP/account count.
+- Every alert has a separate evidence expander containing source rows, timestamps, accounts, IPs, statuses, and its own safe CSV download.
+- No-match and no-alert states explain that no alert does not prove the absence of an attack.
+
+**Visual and responsive treatment**
+
+- Light cybersecurity-academic styling: white surfaces, muted slate text, a restrained blue primary colour, and green/orange status colours.
+- No gradients, shadows, oversized metrics, decorative icons, emojis, animations, fake real-time indicators, or AI styling.
+- Consistent 8 px card radius, visible borders, readable type scale, and meaningful badges.
+- Five metric cards at desktop width; two per row between 480 and 1000 px; one per row below 480 px.
+- Dataset and filter blocks wrap naturally on phones; tab labels remain reachable at 390 px.
+- Plotly charts use a shared theme, readable fonts, integer event ticks for small datasets, adaptive time buckets, and hidden mode bars.
+- The Streamlit toolbar is hidden, the theme is fixed to light, and uploads are capped at 5 MB in `.streamlit/config.toml`.
+
+**Compatibility and accessibility**
+
+- All `use_container_width` usage is gone, including chart calls.
+- `width="stretch"` is used for stretch layout where supported.
+- Alert and source text is escaped before Markdown rendering.
+- `st.badge` is used consistently: dataset/rule/informational states, High = red, Medium = orange.
+- The empty state exposes a visible `Load sample dataset` action; every error state offers recovery actions.
+- `initial_sidebar_state="auto"` keeps the sidebar usable on desktop and collapsed on narrow phones.
 
 ---
 
@@ -196,8 +254,10 @@ python -m pytest -q -W error
 Result:
 
 ```text
-100 passed
+112 passed in 4.79s
 ```
+
+Stage 3 finished with 100 tests. Stage 4 adds twelve presentation-layer tests and keeps the full suite warnings-as-errors clean.
 
 Coverage by area:
 
@@ -245,21 +305,43 @@ Coverage by area:
 - physical source rows flowing from CSV to alert evidence;
 - formula-bearing username preserved for analysis but sanitised in both log and evidence exports.
 
-### App
+### App and UI
 
 Streamlit `AppTest` runs the real `app.py`:
 
 ```text
 exceptions: 0
 errors: 0
-metrics: Total events=12, Successful=4, Failed=8, Unique IPs=3, Alerts=3
+top metrics: Total events=12, Successful=4, Failed=8, Unique IPs=3, Alerts=3
 tabs: Overview, Log Explorer, Security Alerts, Detection Rules
-dataframes: 6
+dataframes: 7
 charts: 2
 download buttons: 6
 ```
 
+The AppTest suite covers the sample smoke path, alert summary rows, clear → reload sample, username filtering across log and alert views, success-only status filtering, and filter reset. Additional pure tests in `tests/test_ui_filters.py` cover status/search/date filtering, full-UTC-day boundaries, source-row preservation, alert selection, display-summary units, and timeline bucket choice.
+
 The only console message in bare AppTest mode is Streamlit's expected `missing ScriptRunContext` harness warning; it is not an application error.
+
+### Stage 4 browser validation
+
+Headless Chrome (Selenium) was used for interaction checks and documentation screenshots:
+
+| Scenario | Result |
+|---|---|
+| Sample dataset | 12 events, 4 successes, 8 failures, 3 IPs, 3 alerts |
+| Sample → upload (`stage4_mixed_alerts.csv`) | 23 events, 3 successes, 20 failures, 5 IPs, 5 alerts; 2 High and 3 Medium |
+| Upload → Clear dataset | No dataset state; zero metrics |
+| Clear → Load sample | Sample restored with the original metrics |
+| Username filter `alex` | 6 of 12 events; 2 of 3 alerts displayed |
+| Success-only status filter | 0 alerts displayed; clear recovery action shown |
+| Small upload (1 row) | 1 event, 1 success, 0 failures, 1 IP, 0 alerts |
+| Large upload (10,000 rows) | 10,000 events, 9,900 successes, 100 failures, 50 IPs, 0 alerts; no qualifying-episode state |
+| Header-only upload | Validation error only; no stale metrics |
+| Invalid upload | `invalid IP address`; no stale metrics; recovery actions available |
+| Downloads | 6 download buttons in the default view; exports use the Stage 3 safe CSV path |
+| Narrow phone (390 px) | Sidebar collapsed, single-column metrics, readable filters, all four tabs reachable, charts stacked |
+| Tablet (860 px) | Two metric cards per row with full labels; charts remain side by side |
 
 ---
 
@@ -313,7 +395,7 @@ This is a sanity check, not a formal benchmark. It also shows that export size c
 
 ## 6. Changed files
 
-### Modified
+### Stage 3 modified
 
 | File | Diff |
 |---|---|
@@ -324,58 +406,96 @@ This is a sanity check, not a formal benchmark. It also shows that export size c
 | `tests/test_detection.py` | +427 / −10 |
 | `tests/test_parser.py` | +350 / −5 |
 
-Tracked-file diff: **1,743 insertions, 117 deletions across 6 files**.
+Stage 3 tracked-file diff: **1,743 insertions, 117 deletions across 6 files**.
 
-### New
+### Stage 4 modified
+
+| File | Diff |
+|---|---|
+| `app.py` | +1,101 / −158 |
+| `tests/test_app.py` | +105 / −0 |
+| `IMPLEMENTATION_REPORT.md` | Updated for Stage 4 |
+
+Stage 4 text diff: **1,206 insertions, 158 deletions across the two tracked Python files**, plus the new presentation-layer files below. No `core/` file changed in Stage 4.
+
+### Stage 4 new files
+
+| File | Lines | Purpose |
+|---|---:|---|
+| `.streamlit/config.toml` | 14 | Light theme, hidden usage stats, 5 MB upload cap |
+| `ui/__init__.py` | 1 | UI package marker |
+| `ui/filters.py` | 224 | Pure exploration filters, timeline buckets, alert display helpers |
+| `ui/theme.py` | 238 | Restrained light CSS, chart styling, Markdown escaping |
+| `tests/test_ui_filters.py` | 181 | Filter, alert-selection, display-summary, timeline tests |
+| `UI_REPORT.md` | 335 | Stage 4 design, validation, and screenshot report |
+| `docs/screenshots/*.png` | 14 images | Desktop, tablet, phone, empty, invalid, filtered, and mixed-alert views |
+
+Stage 3 new files remain part of the repository:
 
 | File | Lines | Purpose |
 |---|---:|---|
 | `core/export.py` | 98 | Safe CSV exports and report builders |
 | `scripts/benchmark_detection.py` | 64 | Reproducible dense-event benchmark |
 | `tests/test_export.py` | 175 | Export/sanitisation tests |
-| `tests/test_app.py` | 34 | Streamlit smoke and alert-table tests |
 | `tests/test_integration.py` | 68 | Parser → detection → export integration tests |
 
-No changes were made to `README.md` or the Stage 1/2 reports in this stage; documentation updates are Stage 5 work.
+`README.md` and the Stage 1/2 reports remain untouched; final documentation is Stage 5 work.
 
 ---
 
 ## 7. Acceptance checklist
 
+### Stage 3 core
+
 | Requirement | Status |
 |---|---|
 | Modular architecture preserved | Met — parser/detection/export remain separate core modules |
-| No UI redesign | Met — only core wiring and deprecation cleanup |
-| No unnecessary dependencies or AI/ML | Met — no new dependencies |
+| No unnecessary dependencies or AI/ML | Met — no new runtime dependencies |
 | No automatic blocking/lockout | Met — not implemented |
 | Configurable thresholds | Met — IP/account threshold and window, spray threshold and window |
 | Evidence for every alert | Met — episode evidence with `source_row` when available |
-| Normal and adversarial inputs tested | Met — 100 tests including formula injection, malformed CSV, limits, invalid parameters |
+| Normal and adversarial inputs tested | Met — parser, detection, export, and integration suites |
 | 1k/3k/6k/10k benchmark | Met — plus 50k row-limit check |
 | Compare with audit measurements | Met — audit baseline included |
 | No quadratic scaling | Met — two-pointer scanner and measured near-linear scaling |
-| Full test suite | Met — 100 passed with warnings-as-errors |
+
+### Stage 4 UI/UX
+
+| Requirement | Status |
+|---|---|
+| Sample button genuinely loads the sample | Met — increments uploader key and clears upload state |
+| Upload/sample precedence unambiguous | Met — upload wins; Load sample clears it |
+| Stale results prevented after dataset changes | Met — dataset identity and analysis key reset |
+| Accessible reset/clear controls | Met — sidebar Clear dataset and error-state recovery actions |
+| Active source and useful metadata | Met — source, badge, UTC range, rows, size, settings |
+| Empty and invalid datasets handled | Met — dedicated empty/error states with no metrics |
+| Username/IP search, status and date filters | Met — shared filters across Overview, Log Explorer, and displayed alerts |
+| Source-row traceability and evidence access | Met — source row shown in log, tables, and every alert evidence expander |
+| Alert reasons, entity, episode, threshold, count | Met — alert summary and per-alert cards |
+| High/Medium/Informational distinction | Met — badges and severity guide |
+| No confirmed-attack claims | Met — repeated review-only language |
+| Deprecated parameters removed | Met — no `use_container_width`; charts use shared `config` |
+| Caching and invalidation | Met — parse cache by bytes; detection memoized by dataset/settings |
+| Restrained, responsive presentation | Met — light theme, no decoration/animation, desktop/tablet/phone layouts |
+| Full test suite | Met — **112 passed** with warnings-as-errors |
 | App smoke test | Met — AppTest reports zero exceptions/errors |
-| Implementation report | Met — this document |
-| Stop before Stage 4 | Met — no Stage 4 work started |
+| Browser validation and screenshots | Met — sample/upload/clear/invalid/small/large/filter/responsive flows |
+| Implementation and UI reports | Met — this document plus `UI_REPORT.md` |
+| Stop after Stage 4 | Met — Stage 5 not started |
 
 ---
 
 ## 8. Unresolved issues and deliberate limitations
 
-These are known, accepted, or deferred. None block Stage 3 acceptance.
+These are known, accepted, or deferred. None block Stage 4 acceptance.
 
-1. **Stage 4 UI work is intentionally pending**
-   - The sample/upload control still has the old no-op behaviour when an upload is active.
-   - The app still auto-loads the sample dataset when no upload is present.
-   - There is no upload reset/clear control.
-   - Reparsing occurs on reruns; result caching is deferred.
-   - The alert summary still exposes several rule-specific columns with empty values; presentation should be cleaned up in Stage 4.
-   - No visual redesign or theme changes were made.
+1. **Streamlit version floor**
+   - `requirements.txt` requires Streamlit `>=1.50` because the app uses `st.dataframe(width="stretch")`, `st.badge`, bordered metrics, and the configured upload cap.
+   - All `use_container_width` usage has been removed. Plotly charts pass only supported `theme` and `config` arguments.
 
-2. **Streamlit version floor**
-   - `requirements.txt` now requires Streamlit `>=1.50` because the app uses `st.dataframe(width="stretch")`.
-   - `st.plotly_chart` still uses `use_container_width=True`; it did not emit a deprecation warning with the installed version. Review this in Stage 4 when the UI is touched.
+2. **Evidence display cap**
+   - The browser evidence table displays the first 500 rows per alert to keep large episodes responsive.
+   - The complete episode remains available in the per-alert evidence CSV download; the event count and threshold are always based on the full episode.
 
 3. **Multiline CSV fields are rejected by design**
    - This preserves accurate physical `source_row` evidence.
@@ -393,6 +513,10 @@ These are known, accepted, or deferred. None block Stage 3 acceptance.
    - No authentication, multi-user isolation, or production deployment hardening is included.
    - The recommendation to use only synthetic or authorised anonymised logs remains in force.
 
+7. **Filters are presentation-only**
+   - Detection always runs on the full active dataset.
+   - Overview charts and tables show the filtered exploration view, while top-line metrics remain dataset-wide by design.
+
 ---
 
 ## 9. Reproduce
@@ -403,4 +527,6 @@ python scripts\benchmark_detection.py
 streamlit run app.py
 ```
 
-For a rollback point before Stage 3, use the Git baseline `4d5c686`. Stage 3 changes are ready for review and have not been followed by any Stage 4 work.
+The Stage 4 screenshots are in `docs/screenshots/` and are referenced in `UI_REPORT.md`. They were captured from the live app in headless Chrome; the capture tooling is not part of the application runtime or test suite.
+
+For a rollback point before Stage 3, use Git baseline `4d5c686`. Stage 3 is commit `eea9586`. Stage 4 is the follow-up UI commit; no Stage 5 work has started.
