@@ -14,7 +14,7 @@ Key design principles:
 - **No Black-Box Models:** No artificial intelligence, black-box machine learning, or opaque statistical scoring is used. Every alert can be verified mathematically against the raw event log.
 - **Human-in-the-Loop Triage:** Alerts are **indicators for human investigation**, not proof of an active attack. Legitimate operational conditions (e.g., mistyped passwords, NAT firewalls) can trigger similar patterns.
 - **One Alert Per Episode:** Rather than flooding analysts with a new alert for every qualifying sliding window, contiguous qualifying windows are merged into a single **episode** with peak metrics and complete supporting evidence.
-- **Deterministic Linear Performance ($O(N)$):** All detection rules utilize two-pointer sliding windows that process sorted failure events in linear time with respect to the number of failed events.
+- **Deterministic Performance ($O(N)$ Scanning, $O(N \log N)$ Pipeline):** All detection rules utilize two-pointer sliding windows that process sorted failure events in strict $O(N)$ linear time. Accounting for chronological mergesort during preprocessing, the end-to-end detection pipeline executes in $O(N \log N)$ time, eliminating the quadratic $O(N^2)$ slowdown of earlier versions.
 
 ---
 
